@@ -1,6 +1,5 @@
 module MoveCraft::Log{
-    use StarcoinFramework::NFT::{Self, NFT, MintCapability, BurnCapability};
-    use MoveCraft::BlockBody::{Self, BlockBody};
+    use StarcoinFramework::NFT::{Self, Metadata};
     
     friend MoveCraft::Block;
     friend MoveCraft::Planks;
@@ -24,16 +23,8 @@ module MoveCraft::Log{
         *&IMAGE
     }
 
-    //TODO mint log should use toools.
-    public(friend) fun mint(cap: &mut MintCapability<Log>): NFT<Log, BlockBody>{
-        let metadata = NFT::new_meta(Self::name(), Self::description());
-		let nft = NFT::mint_with_cap_v2<Log,BlockBody>(@MoveCraft, cap, metadata, Log{}, BlockBody::stackable_body(1));
-		nft
+    public fun metadata(): Metadata{
+        NFT::new_meta_with_image_data(Self::name(), Self::image(), Self::description())
     }
 
-    public(friend) fun burn(cap: &mut BurnCapability<Log>, nft: NFT<Log, BlockBody>): u64 {
-        let body = NFT::burn_with_cap(cap, nft);
-        let (_, count) = BlockBody::unpack(body);
-        count
-    } 
 }

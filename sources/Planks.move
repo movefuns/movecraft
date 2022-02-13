@@ -1,7 +1,5 @@
 module MoveCraft::Planks{
-    use StarcoinFramework::NFT::{Self, NFT, MintCapability, BurnCapability};
-    use MoveCraft::BlockBody::{Self, BlockBody};
-    use MoveCraft::Log::{Self, Log};
+    use StarcoinFramework::NFT::{Self, Metadata};
 
     friend MoveCraft::Block;
 
@@ -24,11 +22,8 @@ module MoveCraft::Planks{
         *&IMAGE
     }
 
-     //TODO craft should use recipe.
-    public(friend) fun craft(mint_cap: &mut MintCapability<Planks>, log: NFT<Log, BlockBody>, burn_cap: &mut BurnCapability<Log>): NFT<Planks, BlockBody>{
-        let metadata = NFT::new_meta(Self::name(), Self::description());
-        let count = Log::burn(burn_cap, log);
-		let nft = NFT::mint_with_cap_v2<Planks,BlockBody>(@MoveCraft, mint_cap, metadata, Planks{}, BlockBody::stackable_body(4 * count));
-		nft
+    public fun metadata(): Metadata{
+        NFT::new_meta_with_image_data(Self::name(), Self::image(), Self::description())
     }
+
 }
