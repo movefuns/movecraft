@@ -5,7 +5,6 @@ version = "0.0.1"
 
 [addresses]
 StarcoinFramework = "0x1"
-StarcoinAssociation = "0xA550C18"
 VMReserved = "0x0"
 MoveCraft = "0xDEF"
 

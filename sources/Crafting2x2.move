@@ -1,9 +1,9 @@
 module MoveCraft::Crafting2x2 {
     use StarcoinFramework::Vector;
-    use StarcoinFramework::NFT::{Self, NFT};
+    use StarcoinFramework::NFT::{NFT};
     use StarcoinFramework::Option::{Self, Option};
-    use MoveCraft::Block::{Self, Block};
-    use MoveCraft::BlockBody::{BlockBody};
+    use StarcoinFramework::Signer;
+    use MoveCraft::Block::{Self, Block, BlockBody};
 
     struct RecipeRegistry has key {
         //TODO find other way to keep Recipe
@@ -19,7 +19,7 @@ module MoveCraft::Crafting2x2 {
         output: u64,
     }
 
-    struct Materials {
+    struct Materials has store {
         grid0: Option<NFT<Block, BlockBody>>,
         grid1: Option<NFT<Block, BlockBody>>,
         grid2: Option<NFT<Block, BlockBody>>,
@@ -27,6 +27,13 @@ module MoveCraft::Crafting2x2 {
     }
 
     const CONTRACT_ACCOUNT: address = @MoveCraft;
+
+    public fun initialize(sender: &signer) {
+        assert!(Signer::address_of(sender) == CONTRACT_ACCOUNT, 100);
+        move_to(sender, RecipeRegistry {
+            recipes: Vector::empty(),
+        });
+    }
 
     public fun register(grid0: u64,
                         grid1: u64,
@@ -87,13 +94,12 @@ module MoveCraft::Crafting2x2 {
                 return false
             }else {
                 let m = Option::borrow(material);
-                let block_meta = NFT::get_type_meta(m);
-                return grid == Block::block_type(block_meta)
+                return grid == Block::block_type(m)
             }
         }
     }
 
-    public fun new_Materials(grid0: Option<NFT<Block, BlockBody>>,
+    public fun new_materials(grid0: Option<NFT<Block, BlockBody>>,
                              grid1: Option<NFT<Block, BlockBody>>,
                              grid2: Option<NFT<Block, BlockBody>>,
                              grid3: Option<NFT<Block, BlockBody>>, ): Materials {
@@ -105,11 +111,11 @@ module MoveCraft::Crafting2x2 {
         }
     }
 
-    public fun new_Materials_one(grid0: NFT<Block, BlockBody>): Materials {
-        Self::new_Materials(Option::some(grid0), Option::none(), Option::none(), Option::none())
+    public fun new_materials_one(grid0: NFT<Block, BlockBody>): Materials {
+        Self::new_materials(Option::some(grid0), Option::none(), Option::none(), Option::none())
     }
 
-    public fun destroy_empty(materials: Materials) {
+    public fun burn_empty_materials(materials: Materials) {
         let Materials{ grid0, grid1, grid2, grid3 } = materials;
         Option::destroy_none(grid0);
         Option::destroy_none(grid1);
@@ -117,6 +123,40 @@ module MoveCraft::Crafting2x2 {
         Option::destroy_none(grid3);
     }
 
+    public(friend) fun burn_materials(materials: Materials) {
+        let Materials{ grid0, grid1, grid2, grid3 } = materials;
+        if (Option::is_none(&grid0)) {
+            Option::destroy_none(grid0);
+        }else {
+            let block0 = Option::destroy_some(grid0);
+            Block::burn(block0);
+        };
+        if (Option::is_none(&grid1)) {
+            Option::destroy_none(grid1);
+        }else {
+            let block1 = Option::destroy_some(grid1);
+            Block::burn(block1);
+        };
+        if (Option::is_none(&grid2)) {
+            Option::destroy_none(grid2);
+        }else {
+            let block2 = Option::destroy_some(grid2);
+            Block::burn(block2);
+        };
+        if (Option::is_none(&grid3)) {
+            Option::destroy_none(grid3);
+        }else {
+            let block3 = Option::destroy_some(grid3);
+            Block::burn(block3);
+        };
+    }
+
+    
+    public fun craft(recipe: &Recipe, materials: Materials): NFT<Block, BlockBody> {
+        assert!(Self::match(recipe, &materials), 100);
+        Self::burn_materials(materials);
+        Block::mint_by_type(recipe.output)
+    }
 
     #[test]
     fun test_match() {
@@ -127,8 +167,8 @@ module MoveCraft::Crafting2x2 {
             grid3: 0,
             output: 11,
         };
-        let m = Self::new_Materials(Option::none(), Option::none(), Option::none(), Option::none());
+        let m = Self::new_materials(Option::none(), Option::none(), Option::none(), Option::none());
         assert!(Self::match(&r, &m) == false, 100);
-        Self::destroy_empty(m);
+        Self::burn_empty_materials(m);
     }
 }

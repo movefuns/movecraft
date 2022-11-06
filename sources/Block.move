@@ -1,10 +1,9 @@
 module MoveCraft::Block{
-    use StarcoinFramework::NFT::{Self, NFT, MintCapability, BurnCapability, UpdateCapability, Metadata};
-    use StarcoinFramework::NFTGallery::{Self};
+    use StarcoinFramework::NFT::{Self, NFT, MintCapability, BurnCapability, UpdateCapability};
     use StarcoinFramework::Signer;
-    use MoveCraft::Log::{Self, Log};
-    use MoveCraft::Planks::{Self, Planks};
-    use MoveCraft::BlockBody::{Self, BlockBody};
+    use MoveCraft::BlockType;
+
+    friend MoveCraft::Crafting2x2;
 
     const NAME: vector<u8> = b"Block";
     const DESCRIPTION: vector<u8> = b"MoveCraft Block";
@@ -13,6 +12,41 @@ module MoveCraft::Block{
     struct Block has copy, drop, store {
         type: u64,
     }
+
+    struct BlockBody has store{
+        stackable: bool,
+        count: u64
+    }
+
+
+    public(friend) fun unpack(body: BlockBody): (bool, u64){
+        let BlockBody{stackable, count} = body;
+        (stackable, count)
+    }
+
+
+    public fun stack(body: &mut BlockBody, other: BlockBody){
+        assert!(body.stackable, 100);
+        assert!(other.stackable, 101);
+        let (_,count) = Self::unpack(other);
+        body.count = body.count + count;
+       
+    }
+
+    public(friend) fun stackable_body(count: u64): BlockBody {
+        BlockBody{
+            stackable: true,
+            count,
+        }
+    }
+
+    public(friend) fun non_stackable_body(): BlockBody{
+        BlockBody{
+            stackable: false,
+            count: 1,
+        }
+    }
+
 
     struct BlockCapability has key {
         mint_cap: MintCapability<Block>,
@@ -27,16 +61,18 @@ module MoveCraft::Block{
         mintable: bool,
     }
 
-    struct BlockTypeInfoKey<phantom BlockType> has key {
-        info: BlockTypeInfo,
+    public fun block_type_info(index: u64, stackable: bool, mintable: bool): BlockTypeInfo{
+        BlockTypeInfo{
+            index,
+            stackable,
+            mintable,
+        }
     }
 
 
     const CONTRACT_ACCOUNT:address = @MoveCraft;
 
-    const LOG_TYPE: u64 = 11;
-    const PLANKS_TYPE: u64 = 12;
-
+ 
     public fun initialize(sender: &signer) {
         assert!(Signer::address_of(sender)==CONTRACT_ACCOUNT, 101);
 		
@@ -58,91 +94,39 @@ module MoveCraft::Block{
             };
 			move_to(sender, cap);
 		};
-        
-        try_register_block<Log>(sender, LOG_TYPE, true, true);
-        try_register_block<Planks>(sender, PLANKS_TYPE, true, false);
     }
 
-    fun try_register_block<BlockType: copy + drop + store>(sender: &signer, index: u64, stackable: bool,
-        mintable: bool,){
-        let addr = Signer::address_of(sender);
-        if(!exists<BlockTypeInfoKey<BlockType>>(addr)) {
-            let info = BlockTypeInfoKey<BlockType>{
-                info:BlockTypeInfo{
-                    index,
-                    stackable,
-                    mintable,
-                }
-            };
-			move_to(sender, info);
-		}
-    }
-
-    ///Get Block metadata by BlockType
-    public fun metadata<BlockType: copy + drop + store>(): Metadata acquires BlockTypeInfoKey {
-        let info = borrow_global<BlockTypeInfoKey<BlockType>>(CONTRACT_ACCOUNT);
-        metadata_by_index(info.info.index)
-    }
-
-    ///Get Block name and description by type index
-    public fun  metadata_by_index(block_type_index: u64): Metadata{
-        if(block_type_index == LOG_TYPE){
-            Log::metadata()
-        }else if(block_type_index == PLANKS_TYPE){
-            Planks::metadata()
-        }else{
-            abort 102
-        }
-    }
-
-    public fun block_type_info<BlockType>(): BlockTypeInfo acquires BlockTypeInfoKey {
-        let info = borrow_global<BlockTypeInfoKey<BlockType>>(CONTRACT_ACCOUNT);
-        *&info.info
-    }
-
-    public fun block_type_info_by_index(block_type_index: u64): BlockTypeInfo acquires BlockTypeInfoKey {
-        if (block_type_index == LOG_TYPE) {
-            Self::block_type_info<Log>()
-        }else if (block_type_index == PLANKS_TYPE) {
-            Self::block_type_info<Planks>()
-        }else {
-            abort 102
-        }
-    }
-
-    public fun block_type(block: &Block): u64 {
-        block.type
+    public fun block_type(block: &NFT<Block, BlockBody>): u64 {
+        let type_meta = NFT::get_type_meta(block);
+        type_meta.type
     }
 
 
-    public fun mint(sender: &signer) acquires BlockCapability, BlockTypeInfoKey {
-        //TODO do random mint block type
-        let random: u64 = 1;
+    public fun mint(_sender: &signer): NFT<Block, BlockBody> acquires BlockCapability{
+        //TODO do random mint block type, and maybe return None;
+        let random: u64 = 11;
 
         let type_index = random;
         let nft = mint_by_type(type_index);
-        NFTGallery::deposit(sender, nft);
+        nft
     }
 
-    public(friend) fun mint_by_type(type_index: u64): NFT<Block, BlockBody> acquires BlockCapability, BlockTypeInfoKey {
+    public(friend) fun mint_by_type(type_index: u64): NFT<Block, BlockBody> acquires BlockCapability{
         let cap = borrow_global_mut<BlockCapability>(CONTRACT_ACCOUNT);
-        let metadata = metadata_by_index(type_index);
-        let block_type_info = block_type_info_by_index(type_index);
-        let body = if (block_type_info.stackable) {
-            BlockBody::stackable_body(1)
+        let metadata = BlockType::metadata_by_index(type_index);
+        let body = if (BlockType::is_stackable(type_index)) {
+            Self::stackable_body(1)
         }else {
-            BlockBody::non_stackable_body()
+            Self::non_stackable_body()
         };
         let nft = NFT::mint_with_cap_v2<Block, BlockBody>(@MoveCraft, &mut cap.mint_cap, metadata, Block{ type: type_index }, body);
         nft
     }
 
-
-    public fun craft(_sender: &signer): NFT<Planks, BlockBody> {
-        // let metadata = NFT::new_meta(Self::name(), Self::description());
-        // let count = Log::burn(burn_cap, log);
-        // let nft = NFT::mint_with_cap_v2<Planks,BlockBody>(@MoveCraft, mint_cap, metadata, Planks{}, BlockBody::stackable_body(4 * count));
-        // nft
-        abort 0
+    public fun burn(block: NFT<Block, BlockBody>) acquires BlockCapability {
+        let cap = borrow_global_mut<BlockCapability>(CONTRACT_ACCOUNT);
+        let body = NFT::burn_with_cap<Block, BlockBody>(&mut cap.burn_cap, block);
+        let (_,_) = Self::unpack(body);
     }
+
 }
