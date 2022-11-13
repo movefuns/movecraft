@@ -35,3 +35,7 @@ Try to simulate the block and crafting system in Minecraft through NFT, and show
 5. Implement a simple Web interface.
 6. Implement the Market. 
 
+
+## Community
+
+* https://t.me/movecraft
