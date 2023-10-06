@@ -5,3 +5,7 @@ version = '1.0.0'
 git = 'https://github.com/aptos-labs/aptos-core.git'
 rev = 'main'
 subdir = 'aptos-move/framework/aptos-framework'
+[addresses]
+my_addr = "_"
+std = "0x1"
+aptos_framework = "0x1"
