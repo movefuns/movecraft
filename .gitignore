@@ -1,7 +1,7 @@
 build
 .DS_Store
 .idea
-
+.aptos
 # Added by cargo
 
 /target
